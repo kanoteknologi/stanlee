@@ -3,6 +3,7 @@ package stanlee_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ariefdarmawan/byter"
 	"github.com/kanoteknologi/stanlee"
@@ -46,8 +47,15 @@ func TestNats(t *testing.T) {
 			}
 		}
 
+		commonData := ""
+		fnSimple := func() {
+			commonData = "OK"
+		}
+
+		e0 := sub1.Subscribe("simple", true, fnSimple)
 		e1 := sub1.Subscribe("hello", false, fnHello)
 		e2 := sub2.Subscribe("hello", false, fnHello)
+		convey.So(e0, convey.ShouldBeNil)
 		convey.So(e1, convey.ShouldBeNil)
 		convey.So(e2, convey.ShouldBeNil)
 
@@ -79,6 +87,13 @@ func TestNats(t *testing.T) {
 							convey.So(e, convey.ShouldBeNil)
 							convey.Println("result: ", res)
 						}
+
+						convey.Convey("simple", func() {
+							convey.So(commonData, convey.ShouldEqual, "")
+							pub.Publish("simple", "", nil)
+							time.Sleep(50 * time.Millisecond)
+							convey.So(commonData, convey.ShouldEqual, "OK")
+						})
 					})
 				})
 			})

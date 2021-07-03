@@ -147,28 +147,46 @@ func (n *natsHandler) Unsubcribe(topic string) {
 }
 
 func (n *natsHandler) buildSubscribeFn(vfn reflect.Value) func(*nats.Msg) {
+	var tparm reflect.Type
+
+	hasInput := false
 	tfn := vfn.Type()
 	parmIsPtr := false
-	tparm := tfn.In(0)
-	if tparm.String()[0] == '*' {
-		parmIsPtr = true
-		tparm = tparm.Elem()
+
+	if tfn.NumIn() > 0 {
+		tparm = tfn.In(0)
+		if tparm.String()[0] == '*' {
+			parmIsPtr = true
+			tparm = tparm.Elem()
+		}
+		hasInput = true
 	}
 
 	return func(msg *nats.Msg) {
-		parmPtr := reflect.New(tparm).Interface()
-		e := n.bt.DecodeTo(msg.Data, parmPtr, nil)
-		if e != nil {
-			return
+		var parmPtr interface{}
+		if hasInput {
+			parmPtr = reflect.New(tparm).Interface()
+			e := n.bt.DecodeTo(msg.Data, parmPtr, nil)
+			if e != nil {
+				return
+			}
 		}
 
-		var vparm reflect.Value
-		if parmIsPtr {
-			vparm = reflect.ValueOf(parmPtr)
+		var (
+			vparm reflect.Value
+			fnRes []reflect.Value
+		)
+
+		if hasInput {
+			if parmIsPtr {
+				vparm = reflect.ValueOf(parmPtr)
+			} else {
+				vparm = reflect.ValueOf(parmPtr).Elem()
+			}
+			fnRes = vfn.Call([]reflect.Value{vparm})
 		} else {
-			vparm = reflect.ValueOf(parmPtr).Elem()
+			fnRes = vfn.Call([]reflect.Value{})
 		}
-		fnRes := vfn.Call([]reflect.Value{vparm})
 
 		res := Respond{}
 
